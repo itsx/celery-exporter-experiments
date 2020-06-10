@@ -3,7 +3,7 @@ import prometheus_client
 TASKS = prometheus_client.Counter(
     "celery_tasks_total",
     "Number of task events.",
-    ["namespace", "name", "state", "queue"],
+    ["namespace", "name", "state", "queue", "hostname"],
 )
 TASKS_RUNTIME = prometheus_client.Histogram(
     "celery_tasks_runtime_seconds", "Task runtime.", ["namespace", "name", "queue"]

@@ -11,6 +11,9 @@ from .metrics import TASKS, TASKS_RUNTIME, LATENCY, WORKERS
 from celery_state import CeleryState
 from .utils import get_config
 
+#BAR debug
+import copy
+
 
 class TaskThread(threading.Thread):
     """
@@ -32,12 +35,28 @@ class TaskThread(threading.Thread):
         self._monitor()
 
     def _process_event(self, evt):
-        (name, queue, latency) = self._state.latency(evt)
-        if latency is not None:
-            LATENCY.labels(namespace=self._namespace, name=name, queue=queue).observe(
-                latency
-            )
-        (name, state, runtime, queue) = self._state.collect(evt)
+        #(name, queue, latency) = self._state.latency(evt)
+        #if latency is not None:
+        #    LATENCY.labels(namespace=self._namespace, name=name, queue=queue).observe(
+        #        latency
+        #    )
+
+        evt_copy = copy.deepcopy(evt)
+        (name, state, runtime, queue, hostname) = self._state.collect(evt)
+        # BAR debug
+        if 'type' in evt and evt['type'] == 'task-started':
+            if 'queue' not in evt:
+                #if evt['queue'] == "undefined":
+                #self.log.info('undefined:')
+                self.log.info('not queue:')
+                self.log.info(queue)
+                self.log.info(evt)
+                self.log.info(evt_copy)
+            else:
+                self.log.info(evt)
+                self.log.info(evt_copy)
+        # end BAR debug
+
 
         if name is not None:
             if runtime is not None:
@@ -46,7 +65,8 @@ class TaskThread(threading.Thread):
                 ).observe(runtime)
 
             TASKS.labels(
-                namespace=self._namespace, name=name, state=state, queue=queue
+                namespace=self._namespace, name=name, state=state, queue=queue,
+                hostname=hostname
             ).inc()
 
     def _monitor(self):  # pragma: no cover
@@ -125,4 +145,4 @@ def setup_metrics(app, namespace):
         for task, queue in config.items():
             LATENCY.labels(namespace=namespace, name=task, queue=queue)
             for state in celery.states.ALL_STATES:
-                TASKS.labels(namespace=namespace, name=task, state=state, queue=queue)
+                TASKS.labels(namespace=namespace, name=task, state=state, queue=queue, hostname='default')

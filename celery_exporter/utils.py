@@ -1,7 +1,7 @@
 from itertools import chain
 
 CELERY_DEFAULT_QUEUE = "celery"
-CELERY_MISSING_DATA = "undefined"
+CELERY_MISSING_DATA = "undefined-test2"
 
 
 def _gen_wildcards(name):

@@ -5,9 +5,9 @@ use std::fmt;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
-static CELERY_MISSING_DATA: &'static str = "undefined";
+static CELERY_MISSING_DATA: &'static str = "undefined-test";
 
-type CollectOutcome = (Option<String>, Option<String>, Option<f64>, Option<String>); // name, state, runtime, queue
+type CollectOutcome = (Option<String>, Option<String>, Option<f64>, Option<String>, Option<String>); // name, state, runtime, queue
 type LatencyOutcome = (Option<String>, Option<String>, Option<f64>);
 
 fn is_task_event(kind: &str) -> bool {
@@ -24,6 +24,7 @@ struct Task {
     local_received: f64,
     runtime: Option<f64>,
     state: TaskState,
+    hostname: String,
 }
 
 impl Default for Task {
@@ -34,6 +35,7 @@ impl Default for Task {
             local_received: 0.0,
             runtime: None,
             state: TaskState::UNDEFINED,
+            hostname: CELERY_MISSING_DATA.to_string(),
         }
     }
 }
@@ -54,6 +56,17 @@ impl Task {
                 self.uuid = u.to_string();
             }
             self.state = TaskState::from_event(state);
+            if self.state == TaskState::STARTED {
+                let hostname = evt.get_item("hostname");
+
+                if let Some(h) = hostname {
+                    self.hostname = h.to_string();
+                }
+
+                //self.hostname = Some(h.extract()?);
+                //self.hostname = h.to_string();
+                //let hostname: String = h.to_string();
+            }
             self.local_received = evt
                 .get_item("local_received")
                 .expect("Invalid Event: missing local_received")
@@ -70,7 +83,7 @@ impl Task {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum TaskState {
     PENDING,
     RECEIVED,
@@ -132,7 +145,7 @@ impl CeleryState {
             .extract()?;
 
         if !is_task_event(&kind) {
-            return Ok((None, None, None, None));
+            return Ok((None, None, None, None, None));
         }
 
         let mut task = Task::default();
@@ -147,11 +160,17 @@ impl CeleryState {
                     .unwrap_or(&CELERY_MISSING_DATA.to_string())
                     .into();
 
+                let hostname: String = self.tasks.pop(&task.hostname).unwrap_or(task.clone()).hostname;
+                    //.get(&hostname)
+                    //.unwrap_or(&CELERY_MISSING_DATA.to_string())
+                    //.into();
+
                 return Ok((
                     Some(name),
                     Some(task.state.to_string()),
                     task.runtime,
                     Some(queue),
+                    Some(hostname)
                 ));
             }
             _ => {
@@ -167,12 +186,17 @@ impl CeleryState {
                     None => {}
                 }
 
+                let hostname: String = self.tasks.pop(&task.hostname).unwrap_or(task.clone()).hostname;
+                    //.get(&hostname)
+                    //.unwrap_or(&CELERY_MISSING_DATA.to_string())
+                    //.into();
+
                 let queue: String = self
                     .queue_by_task
                     .get(&name)
                     .unwrap_or(&CELERY_MISSING_DATA.to_string())
                     .into();
-                return Ok((Some(name), Some(task.state.to_string()), None, Some(queue)));
+                return Ok((Some(name), Some(task.state.to_string()), None, Some(queue), Some(hostname)));
             }
         }
     }
